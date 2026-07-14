@@ -5,12 +5,12 @@ import re
 import torch
 from PIL import Image, ImageDraw, ImageFont
 from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
-
+import json
 
 def parse_args():
     parser = argparse.ArgumentParser(description="PaliGemma 2 Local Object Detection CLI")
     parser.add_argument("--image", type=str, required=True, help="Path to local image file")
-    parser.add_argument("--classes", type=str, required=True, help="Semicolon separated labels (e.g., 'cat; dog')")
+    parser.add_argument("--classes", type=str, required=True, help="Path to json file defining classes")
     parser.add_argument("--output", type=str, default="detected_output.jpg", help="Filename to save the visualized image")
     parser.add_argument("--model", type=str, default="google/paligemma2-3b-mix-448", help="Hugging Face model ID")
     return parser.parse_args()
@@ -85,6 +85,17 @@ def convert_to_yolo(box, img_w, img_h):
         round(box_h / img_h, 6)
     ]
 
+
+def read_label_classes(fname):
+    try:
+        with open(fname, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except json.JSONDecodeError as e:
+        print(f"Syntax Error (check for trailing commas!): {e}")
+    except FileNotFoundError:
+        print("The specified file was not found.")
+    
+
 def main():
     args = parse_args()
 
@@ -93,16 +104,24 @@ def main():
         raise EnvironmentError("Container Boot Failure: The 'HF_TOKEN' runtime variable is missing.")
 
     # Formulate precise dynamic class indexes from user array entries
-    classes_list = [c.strip() for c in args.classes.split(";") if c.strip()]
-    class_mapping = {label: idx for idx, label in enumerate(classes_list)}
-    
+    classes_list = read_label_classes(args.classes)
+    prompt_list = sorted(classes_list, key=lambda x: x["prompt_order"])
+    class_str = ""
+    for item in prompt_list:
+        if len(class_str) > 0:
+            class_str += " ; "
+        prompt = item.get("prompt", "Unknown Label")
+        class_str += prompt
+
+    print(class_str)
+        
     # 1. Load the model directly into VRAM using bfloat16
     print(f"Loading {args.model} onto GPU...")
     model = PaliGemmaForConditionalGeneration.from_pretrained(
         args.model, 
         torch_dtype=torch.bfloat16, 
         device_map="cuda",
-	token=hf_token
+        token=hf_token
     )
     processor = AutoProcessor.from_pretrained(args.model, token=hf_token)
     
@@ -111,7 +130,7 @@ def main():
     img_w, img_h = image.size
     
     # Correct syntax format required by PaliGemma 2 for object detection
-    prompt = f"<image> detect {args.classes}\n"
+    prompt = f"<image> detect {class_str}\n"
     print(f"Processing prompt: '{prompt.strip()}'")
 
     inputs = processor(text=prompt, images=image, return_tensors="pt").to("cuda")
@@ -158,16 +177,23 @@ def main():
             box = det["box"] # [xmin, ymin, xmax, ymax]
             label = det["label"]
             
+            match = None
+            for item in classes_list:
+                if item.get("prompt") == label:
+                    match = item
+                    break
+            name = match["name"]
+
             # Fetch the dynamic color for this specific label category
-            class_color = get_class_color(label)
+            class_color = get_class_color(name)
             
-            print(f" -> Label: {label} | Box: {box} | RGB: {class_color}")
+            print(f" -> Label: {name} | Box: {box} | RGB: {class_color}")
             
             # Draw bounding box (3 pixels thick)
             draw.rectangle(box, outline=class_color, width=3)
             
             # Draw text background banner using the same class color
-            text_size = draw.textbbox((box[0], box[1]), label, font=font)
+            text_size = draw.textbbox((box[0], box[1]), name, font=font)
             text_w = text_size[2] - text_size[0]
             text_h = text_size[3] - text_size[1]
             
@@ -176,7 +202,7 @@ def main():
             draw.rectangle(text_background, fill=class_color)
             
             # Render text in black or white depending on background choice (default black here)
-            draw.text((box[0] + 3, max(0, box[1] - text_h - 2)), label, fill=(0, 0, 0), font=font)
+            draw.text((box[0] + 3, max(0, box[1] - text_h - 2)), name, fill=(0, 0, 0), font=font)
         
         # Save output image
         image.save(args.output)
@@ -189,7 +215,12 @@ def main():
             box = det["box"] # [xmin, ymin, xmax, ymax]
             label = det["label"]
 
-            class_id = class_mapping[label]
+            match = None
+            for item in classes_list:
+                if item.get("prompt") == label:
+                    match = item
+                    break
+            class_id = match["code"]
             yolo_box = convert_to_yolo(box, img_w, img_h)
             
             yolo_lines.append(f"{class_id} " + " ".join(map(str, yolo_box)))
