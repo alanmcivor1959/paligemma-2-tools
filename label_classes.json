@@ -1,0 +1,20 @@
+[
+    {
+	"code": 1025,
+	"name": "person",
+	"prompt": "person",
+	"prompt_order": 2
+    },
+    {
+	"code": 1026,
+	"name": "bicycle",
+	"prompt": "person riding bicycle",
+	"prompt_order": 1
+    },
+    {
+	"code": 1027,
+	"name": "scooter",
+	"prompt": "person on scooter",
+	"prompt_order": 3
+    }
+]
