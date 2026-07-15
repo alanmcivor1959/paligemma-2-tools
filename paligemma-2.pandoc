@@ -1,0 +1,1 @@
+pandoc paligemma-2.md -s --css=styles.css -o paligemma-2.html
