@@ -1,0 +1,3 @@
+#!/bin/sh
+
+podman run -it --gpus all -e HF_TOKEN=$HF_TOKEN --shm-size 2g -v /data/datasets:/datasets:z -v /data/paligemma2:/workspace:z localhost/my-paligemma2
