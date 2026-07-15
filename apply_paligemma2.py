@@ -66,27 +66,6 @@ def parse_paligemma_boxes(output_text, img_w, img_h):
         })
     return results
 
-def convert_to_yolo(box, img_w, img_h):
-    """Converts [xmin, ymin, xmax, ymax] into YOLO normalized [x_center, y_center, width, height]."""
-    xmin, ymin, xmax, ymax = box
-    
-    # Calculate box width and height
-    box_w = xmax - xmin
-    box_h = ymax - ymin
-    
-    # Calculate center point coordinates
-    x_center = xmin + (box_w / 2)
-    y_center = ymin + (box_h / 2)
-    
-    # Normalise against total image scale dimensions
-    return [
-        round(x_center / img_w, 6),
-        round(y_center / img_h, 6),
-        round(box_w / img_w, 6),
-        round(box_h / img_h, 6)
-    ]
-
-
 def normalise_bbox(box, img_w, img_h):
     """Converts [xmin, ymin, xmax, ymax] into normalized [xmin, xmax, ymin, ymax]."""
     xmin, ymin, xmax, ymax = box
