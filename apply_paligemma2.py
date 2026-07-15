@@ -73,6 +73,7 @@ def normalise_bbox(box, img_w, img_h):
 
 
 def read_label_classes(fname):
+    """Reads label classes from json file"""
     try:
         with open(fname, "r", encoding="utf-8") as file:
             return json.load(file)
@@ -80,7 +81,20 @@ def read_label_classes(fname):
         print(f"Syntax Error (check for trailing commas!): {e}")
     except FileNotFoundError:
         print("The specified file was not found.")
-    
+
+
+def get_prompt(classes_list):
+    """Calculates prompt from classes list"""
+    prompt_list = sorted(classes_list, key=lambda x: x["prompt_order"])
+    class_str = ""
+    for item in prompt_list:
+        if len(class_str) > 0:
+            class_str += " ; "
+        cprompt = item.get("prompt", "Unknown Label")
+        class_str += cprompt
+    prompt = "<image> detect " + class_str
+    return prompt
+
 
 def main():
     args = parse_args()
@@ -89,15 +103,7 @@ def main():
     if not hf_token:
         raise EnvironmentError("Container Boot Failure: The 'HF_TOKEN' runtime variable is missing.")
 
-    # Formulate precise dynamic class indexes from user array entries
     classes_list = read_label_classes(args.classes)
-    prompt_list = sorted(classes_list, key=lambda x: x["prompt_order"])
-    class_str = ""
-    for item in prompt_list:
-        if len(class_str) > 0:
-            class_str += " ; "
-        prompt = item.get("prompt", "Unknown Label")
-        class_str += prompt
 
     # 1. Load the model directly into VRAM using bfloat16
     print(f"Loading {args.model} onto GPU...")
@@ -116,7 +122,7 @@ def main():
         exit()
 
     # Correct syntax format required by PaliGemma 2 for object detection
-    prompt = f"<image> detect {class_str}\n"
+    prompt = get_prompt(classes_list)
 
     bboxes = []
     bboxid = 0
