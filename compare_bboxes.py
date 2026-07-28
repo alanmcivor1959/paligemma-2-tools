@@ -267,11 +267,11 @@ def print_confusion_matrix_report(matrix, classes):
     labels = []
     for i in range(len(classes)):
         labels.append(classes.iloc[i,1])
-    labels.append("background")
+    labels.append("unknown")
     print("=" * 65)
     print("                 CONFUSION MATRIX SUMMARY                        ")
     print("=" * 65)
-    print("Rows: Baseline (Tool A) | Columns: Candidate (Tool B)\n")
+    print("Rows: Baseline  | Columns: Candidate  \n")
     
     # Header format string
     header_str = f"{'':<15}" + "".join([f"{lbl:>12}" for lbl in labels])
