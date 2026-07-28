@@ -9,6 +9,7 @@ import json
 import cv2
 import label_classes
 import paligemma2_support
+import bbox_io as bbio
 
 def parse_args():
     parser = argparse.ArgumentParser(description="PaliGemma 2 Local Object Detection CLI")
@@ -19,12 +20,6 @@ def parse_args():
     return parser.parse_args()
 
 # NB: -mix- models are fine-tuned for multiple tasks, -pt- models need fine-tuning before use
-
-def normalise_bbox(box, img_w, img_h):
-    """Converts [xmin, ymin, xmax, ymax] into normalized [xmin, xmax, ymin, ymax]."""
-    xmin, ymin, xmax, ymax = box
-    return [ xmin / img_w, xmax / img_w, ymin / img_h, ymax / img_h ]
-
 
 def main():
     args = parse_args()
@@ -62,6 +57,7 @@ def main():
         if not ret:
             break
         fno = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        ts = 0.0
 
         conv = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(conv)
@@ -96,18 +92,12 @@ def main():
                     break
             class_id = match["code"]
             bboxid += 1
-            bbox = [bboxid, fno, box, class_id]
+            bbox = [bboxid, fno, ts, box, class_id]
             bboxes.append(bbox)
 
     cap.release()
 
-    with open(args.output, "w", encoding="utf-8") as txt_f:
-        for bbox in bboxes:
-            bboxid, fno, box, class_id = bbox
-            nbox = normalise_bbox(box, img_w, img_h)
-            txt_f.write(f"{bboxid} {fno} 0000000000.000000 " + " ".join(map(str, nbox)) + f" {class_id}" + "\n" )
-    
-
+    bbio.write(args.output, bboxes, img_w, img_h)
 
 if __name__ == "__main__":
     main()
