@@ -1,11 +1,16 @@
 import collections
 import numpy as np
+import pandas as pd
 from scipy.optimize import linear_sum_assignment
 
+def convert_class_code_to_index(classes,class_id):
+    for i in range(len(classes)):
+        if class_id == classes.iloc[i,0]:
+            return i
+    sys.exit("Invalid class code") 
 
 def load_bounding_boxes(file_path, img_w, img_h):
     frames_dict = collections.defaultdict(list)
-    all_classes = set()
 
     with open(file_path, "r") as f:
         for line in f:
@@ -23,15 +28,14 @@ def load_bounding_boxes(file_path, img_w, img_h):
                 float(fields[4])*img_w,  # x_max
                 float(fields[6])*img_h,  # y_max
             ]
-            label = fields[7]  # class_id
-            all_classes.add(label)
+            label = int(fields[7])  # class_id
 
             frames_dict[frame_num].append({"box": box, "label": label})
 
     if not frames_dict:
-        return [], list(all_classes)
+        return []
     max_frame = max(frames_dict.keys())
-    return [frames_dict[i] for i in range(max_frame + 1)], list(all_classes)
+    return [frames_dict[i] for i in range(max_frame + 1)]
 
 
 def calculate_iou(box1, box2):
@@ -50,15 +54,13 @@ def calculate_iou(box1, box2):
     return inter_area / union_area
 
 
-def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, unique_classes, lam=1.0, iou_threshold=0.5):
+def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam=1.0, iou_threshold=0.5):
     """
     Compares boxes globally using standard optimization matrix: -(iou + lam * X).
     Collects exact classification counts to map out a complete Confusion Matrix.
     """
     total_frames = max(len(tool_a_frames), len(tool_b_frames))
     
-    classes = sorted(list(unique_classes))
-    class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
     bg_idx = len(classes)
     
     confusion_matrix = np.zeros((bg_idx + 1, bg_idx + 1), dtype=int)
@@ -75,13 +77,13 @@ def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, unique_classes, la
         
         if num_a == 0:
             for item_b in boxes_b:
-                b_idx = class_to_idx.get(item_b["label"], bg_idx)
+                b_idx = convert_class_code_to_index(classes,item_b["label"])
                 confusion_matrix[bg_idx, b_idx] += 1
             continue
             
         if num_b == 0:
             for item_a in boxes_a:
-                a_idx = class_to_idx.get(item_a["label"], bg_idx)
+                a_idx = convert_class_code_to_index(classes,item_a["label"])
                 confusion_matrix[a_idx, bg_idx] += 1
             continue
 
@@ -106,23 +108,23 @@ def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, unique_classes, la
                 matched_a.add(r)
                 matched_b.add(c)
                 
-                a_idx = class_to_idx[boxes_a[r]["label"]]
-                b_idx = class_to_idx[boxes_b[c]["label"]]
+                a_idx = convert_class_code_to_index(classes,boxes_a[r]["label"])
+                b_idx = convert_class_code_to_index(classes,boxes_b[c]["label"])
                 confusion_matrix[a_idx, b_idx] += 1
 
         # Handle leftover unmatched boxes from Tool A (Missed / False Negatives)
         for i in range(num_a):
             if i not in matched_a:
-                a_idx = class_to_idx[boxes_a[i]["label"]]
+                a_idx = convert_class_code_to_index(classes,boxes_a[i]["label"])
                 confusion_matrix[a_idx, bg_idx] += 1
 
         # Handle leftover unmatched boxes from Tool B (Phantom detections / False Positives)
         for j in range(num_b):
             if j not in matched_b:
-                b_idx = class_to_idx[boxes_b[j]["label"]]
+                b_idx = convert_class_code_to_index(classes,boxes_b[j]["label"])
                 confusion_matrix[bg_idx, b_idx] += 1
 
-    return confusion_matrix, classes
+    return confusion_matrix
 
 
 def calculate_per_class_metrics(matrix, classes):
@@ -134,7 +136,7 @@ def calculate_per_class_metrics(matrix, classes):
     total_elements = np.sum(matrix)
     bg_idx = len(classes)
 
-    for idx, class_name in enumerate(classes):
+    for idx in range(len(classes)):
         # True Positive: Class correctly predicted as Class
         tp = matrix[idx, idx]
         
@@ -152,7 +154,7 @@ def calculate_per_class_metrics(matrix, classes):
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         accuracy = (tp + tn) / total_elements if total_elements > 0 else 0.0
 
-        metrics[class_name] = {
+        metrics[idx] = {
             "precision": precision,
             "recall": recall,
             "accuracy": accuracy,
@@ -162,12 +164,12 @@ def calculate_per_class_metrics(matrix, classes):
     return metrics
 
 
-def print_performance_report(metrics):
+def print_performance_report(metrics, classes):
     """Outputs a structured summary table with class breakdowns and all three aggregation types."""
     print("=" * 78)
     print("                 PER-CLASS EVALUATION METRICS                    ")
     print("=" * 78)
-    print(f"{'Class ID':<15}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}{'Accuracy':>12}{'Total TP':>12}")
+    print(f"{'Class':<15}{'Precision':>12}{'Recall':>12}{'F1-Score':>12}{'Accuracy':>12}{'Total TP':>12}")
     print("-" * 78)
     
     # Track global sums for Micro-Averaging
@@ -181,6 +183,10 @@ def print_performance_report(metrics):
     class_f1s = []
     class_weights = []  # Ground truth instances per class (TP + FN)
     
+    labels = []
+    for i in range(len(classes)):
+        labels.append(classes.iloc[i,1])
+
     for cls, scores in metrics.items():
         tp = scores['counts']['tp']
         fp = scores['counts']['fp']
@@ -193,7 +199,7 @@ def print_performance_report(metrics):
         # Ground Truth Count for this class acts as its weight
         gt_count = tp + fn
 
-        print(f"{cls:<15}"
+        print(f"{labels[cls]:<15}"
               f"{p:>12.4f}"
               f"{r:>12.4f}"
               f"{f1:>12.4f}"
@@ -258,7 +264,10 @@ def print_performance_report(metrics):
 
 def print_confusion_matrix_report(matrix, classes):
     """Prints a structured, readable confusion matrix grid."""
-    labels = classes + ["Background"]
+    labels = []
+    for i in range(len(classes)):
+        labels.append(classes.iloc[i,1])
+    labels.append("background")
     print("=" * 65)
     print("                 CONFUSION MATRIX SUMMARY                        ")
     print("=" * 65)
@@ -274,7 +283,15 @@ def print_confusion_matrix_report(matrix, classes):
         print(row_str)
     print("=" * 65)
 
-
+# this can't yet handle a custom dataset that uses standard object classes
+def load_classes(fname):
+    df = pd.DataFrame()
+    if fname is None:
+        data = { 'category' : [1, 2, 3, 4, 5 ], 'name' : ["person", "trolley", "group", "bicycle", "scooter"] }
+        df = pd.DataFrame(data)
+    else:
+        df = pd.read_csv(fname, sep="\\s+", header=None, names=['category', 'name'])
+    return df
 
 
 # --- Execution Example ---
@@ -295,19 +312,16 @@ def print_confusion_matrix_report(matrix, classes):
 # )
 # print_confusion_matrix_report(matrix, class_list)
 
+class_df = load_classes("micro-mobility.classes")
 
+#tool_a = load_bounding_boxes("/home/mstorage/alan/nta/13-manse-street-micromobility-oc/nta-13-manse-street_20260227-1520-2.bbox", 512, 288)
+tool_a = load_bounding_boxes("../paligemma-2/nta-13-manse-street_20260227-1520-2.sub.bbox", 512, 288)
+tool_b = load_bounding_boxes("nta-13-manse-street_20260227-1520-2.pg2", 512, 288)
 
-#tool_a, classes_a = load_bounding_boxes("/home/mstorage/alan/nta/13-manse-street-micromobility-oc/nta-13-manse-street_20260227-1520-2.bbox", 512, 288)
-tool_a, classes_a = load_bounding_boxes("../paligemma-2/nta-13-manse-street_20260227-1520-2.sub.bbox", 512, 288)
-tool_b, classes_b = load_bounding_boxes("nta-13-manse-street_20260227-1520-2.pg2", 512, 288)
-unique_classes = set(classes_a + classes_b)
-#print(unique_classes)
+matrix = compare_boxes_soft_matching(tool_a, tool_b, class_df, lam=1.0, iou_threshold=0.5)
 
-matrix, class_list = compare_boxes_soft_matching(
-    tool_a, tool_b, unique_classes, lam=1.0, iou_threshold=0.5
-)
+metrics_summary = calculate_per_class_metrics(matrix, class_df)
 
-metrics_summary = calculate_per_class_metrics(matrix, class_list)
-print_performance_report(metrics_summary)
+print_performance_report(metrics_summary, class_df)
 
-print_confusion_matrix_report(matrix, class_list)
+print_confusion_matrix_report(matrix, class_df)
