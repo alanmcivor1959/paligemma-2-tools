@@ -314,11 +314,11 @@ def load_classes(fname):
 
 class_df = load_classes("micro-mobility.classes")
 
-#tool_a = load_bounding_boxes("/home/mstorage/alan/nta/13-manse-street-micromobility-oc/nta-13-manse-street_20260227-1520-2.bbox", 512, 288)
-tool_a = load_bounding_boxes("../paligemma-2/nta-13-manse-street_20260227-1520-2.sub.bbox", 512, 288)
-tool_b = load_bounding_boxes("nta-13-manse-street_20260227-1520-2.pg2", 512, 288)
+#baseline_b = load_bounding_boxes("/home/mstorage/alan/nta/13-manse-street-micromobility-oc/nta-13-manse-street_20260227-1520-2.bbox", 512, 288)
+baseline_b = load_bounding_boxes("../paligemma-2/nta-13-manse-street_20260227-1520-2.sub.bbox", 512, 288)
+candidate_b = load_bounding_boxes("nta-13-manse-street_20260227-1520-2.pg2", 512, 288)
 
-matrix = compare_boxes_soft_matching(tool_a, tool_b, class_df, lam=1.0, iou_threshold=0.5)
+matrix = compare_boxes_soft_matching(baseline_b, candidate_b, class_df, lam=1.0, iou_threshold=0.5)
 
 metrics_summary = calculate_per_class_metrics(matrix, class_df)
 
