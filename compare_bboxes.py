@@ -1,3 +1,4 @@
+import argparse
 import collections
 import numpy as np
 import pandas as pd
@@ -54,7 +55,7 @@ def calculate_iou(box1, box2):
     return inter_area / union_area
 
 
-def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam=1.0, iou_threshold=0.5):
+def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam, iou_threshold):
     """
     Compares boxes globally using standard optimization matrix: -(iou + lam * X).
     Collects exact classification counts to map out a complete Confusion Matrix.
@@ -220,6 +221,7 @@ def print_performance_report(metrics, classes):
     print("-" * 78)
     
     # 1. Micro-Averaged Performance Metrics
+    #    Average over all detections independently
     micro_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
     micro_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
     micro_f1 = 2 * (micro_precision * micro_recall) / (micro_precision + micro_recall) if (micro_precision + micro_recall) > 0 else 0.0
@@ -232,6 +234,7 @@ def print_performance_report(metrics, classes):
           f"{total_tp:>12}")
           
     # 2. Macro-Averaged Performance Metrics
+    #    Average of all class statistics
     num_classes = len(metrics) if metrics else 1
     macro_precision = sum(class_precisions) / num_classes
     macro_recall = sum(class_recalls) / num_classes
@@ -245,6 +248,7 @@ def print_performance_report(metrics, classes):
           f"{'-':>12}")
           
     # 3. Weighted Macro-Averaged Performance Metrics
+    #    Average of all class statistics weighted by numbers in baseline set
     total_weight = sum(class_weights)
     if total_weight > 0:
         weighted_precision = sum(p * w for p, w in zip(class_precisions, class_weights)) / total_weight
@@ -267,7 +271,11 @@ def print_confusion_matrix_report(matrix, classes):
     labels = []
     for i in range(len(classes)):
         labels.append(classes.iloc[i,1])
-    labels.append("unknown")
+    # use the label background instead of missing/extra, as assuming all objects
+    # of interest in a frame are labelled, a missing detection is an object identified
+    # as background and an extra detection is part of the background identified as
+    # an object (hallucination)
+    labels.append("background")
     print("=" * 65)
     print("                 CONFUSION MATRIX SUMMARY                        ")
     print("=" * 65)
@@ -294,34 +302,57 @@ def load_classes(fname):
     return df
 
 
-# --- Execution Example ---
-# tool_a, classes_a = load_bounding_boxes("baseline.txt")
-# tool_b, classes_b = load_bounding_boxes("candidate.txt")
-# unique_classes = set(classes_a + classes_b)
-#
-# matrix, class_list = compare_boxes_soft_matching(
-#     tool_a, tool_b, unique_classes, lam=1.0, iou_threshold=0.5
-# )
-#
-# metrics_summary = calculate_per_class_metrics(matrix, class_list)
-# print_performance_report(metrics_summary)
+def image_size(value):
+    """Validates and parses a positive integer pair in WxH format."""
+    try:
+        width, height = map(int, value.lower().split('x'))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid format: '{value}'. Must be WidthxHeight using integers (e.g., 800x600)."
+        )
+    
+    # Enforce strictly positive values
+    if width <= 0 or height <= 0:
+        raise argparse.ArgumentTypeError(
+            f"Invalid dimensions: {width}x{height}. Both width and height must be greater than 0."
+        )
+        
+    return width, height
 
-#
-# matrix, class_list = compare_boxes_soft_matching(
-#     tool_a, tool_b, unique_classes, lam=1.5, iou_threshold=0.4
-# )
-# print_confusion_matrix_report(matrix, class_list)
 
-class_df = load_classes("micro-mobility.classes")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Compare candidate bounding boxes to baseline")
+    parser.add_argument("-t", "--baseline", help="Baseline bounding boxes", required=True)
+    parser.add_argument("-o", "--candidate", help="Candidate bounding boxes", required=True)
+    parser.add_argument("-u", "--classes", type=str, help="use these object classes (standard set: person/bicycle/scooter)")
+    parser.add_argument("--size", type=image_size, default=(1024,576), help="Frame dimensions formatted as WidthxHeight (1024x576)")
+    parser.add_argument("--iou", type=float, default=0.4, help="IOU threshold (0.4)")
+    parser.add_argument("--lam", type=float, default=0.2, help="Weight to apply to class difference (0.2)")
+    return parser.parse_args()
 
-#baseline_b = load_bounding_boxes("/home/mstorage/alan/nta/13-manse-street-micromobility-oc/nta-13-manse-street_20260227-1520-2.bbox", 512, 288)
-baseline_b = load_bounding_boxes("../paligemma-2/nta-13-manse-street_20260227-1520-2.sub.bbox", 512, 288)
-candidate_b = load_bounding_boxes("nta-13-manse-street_20260227-1520-2.pg2", 512, 288)
 
-matrix = compare_boxes_soft_matching(baseline_b, candidate_b, class_df, lam=1.0, iou_threshold=0.5)
+def main():
+    args = parse_args()
 
-metrics_summary = calculate_per_class_metrics(matrix, class_df)
+    class_df = load_classes(args.classes)
+    width, height = args.size
 
-print_performance_report(metrics_summary, class_df)
+    baseline_b = load_bounding_boxes(args.baseline, width, height)
+    candidate_b = load_bounding_boxes(args.candidate, width, height)
 
-print_confusion_matrix_report(matrix, class_df)
+    lam = args.lam
+    iou_threshold = args.iou
+    matrix = compare_boxes_soft_matching(baseline_b, candidate_b, class_df, lam, iou_threshold)
+
+    metrics_summary = calculate_per_class_metrics(matrix, class_df)
+
+    print("");
+    print_performance_report(metrics_summary, class_df)
+    print("");
+    print_confusion_matrix_report(matrix, class_df)
+    print("");
+
+
+if __name__ == "__main__":
+    main()
+
