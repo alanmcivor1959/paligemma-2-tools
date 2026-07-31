@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--output", type=str, required=True, help="Filename to save the bbox to")
     parser.add_argument("--model", type=str, default="google/paligemma2-3b-mix-448", help="Hugging Face model ID")
     parser.add_argument("--batch", type=int, default=16, help="Number of frames per batch")
+    parser.add_argument("--max_tokens", type=int, default=100, help="Maximum number of tokens in response")
     return parser.parse_args()
 
 # NB: -mix- models are fine-tuned for multiple tasks, -pt- models need fine-tuning before use
@@ -59,6 +60,8 @@ def main():
     
     batch_size = args.batch
 
+    max_new_tokens = args.max_tokens
+
     while cap.isOpened():
         ret, frame = cap.read()
 
@@ -82,7 +85,7 @@ def main():
 
             # Run parallel batch inference
             with torch.no_grad():
-                generated_ids = model.generate(**inputs, max_new_tokens=100, do_sample=False)
+                generated_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
                 generated_ids = generated_ids[:, prompt_length:]
 
             outputs = processor.batch_decode(generated_ids, skip_special_tokens=False)
