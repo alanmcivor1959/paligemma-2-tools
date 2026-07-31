@@ -6,22 +6,22 @@ def parse_boxes(output_text, img_w, img_h):
     Format is: <locYMIN><locXMIN><locYMAX><locXMAX> label
     """
     # Regex pattern to extract location tokens and the trailing label
-    pattern = r"<loc(\d+)><loc(\d+)><loc(\d+)><loc(\d+)>\s*([^<]+)"
+    pattern = r"<loc(\d{4})><loc(\d{4})><loc(\d{4})><loc(\d{4})>\s*([^;?<]+)"
     matches = re.findall(pattern, output_text)
     
     results = []
     for match in matches:
-        ymin, xmin, ymax, xmax = map(int, match[:4])
-        label = match[4].strip().replace("\n", "").rstrip("; ")
+        ymin_norm, xmin_norm, ymax_norm, xmax_norm = map(int, match[:4])
+        label = match[4].strip()
         
-        # Denormalize from 1024-grid to actual pixel spaces
-        pixel_xmin = (xmin / 1024) * img_w
-        pixel_ymin = (ymin / 1024) * img_h
-        pixel_xmax = (xmax / 1024) * img_w
-        pixel_ymax = (ymax / 1024) * img_h
+        # Denormalize from 1024-grid to actual image plane coordinates
+        xmin = (xmin_norm / 1024) * img_w
+        ymin = (ymin_norm / 1024) * img_h
+        xmax = (xmax_norm / 1024) * img_w
+        ymax = (ymax_norm / 1024) * img_h
         
         results.append({
             "label": label,
-            "box": [pixel_xmin, pixel_ymin, pixel_xmax, pixel_ymax]
+            "box": [xmin, ymin, xmax, ymax]
         })
     return results
