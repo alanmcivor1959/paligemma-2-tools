@@ -55,7 +55,7 @@ def calculate_iou(box1, box2):
     return inter_area / union_area
 
 
-def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam, iou_threshold):
+def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam, iou_threshold, symmetric):
     """
     Compares boxes globally using standard optimization matrix: -(iou + lam * X).
     Collects exact classification counts to map out a complete Confusion Matrix.
@@ -73,7 +73,7 @@ def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam, iou_
         num_a = len(boxes_a)
         num_b = len(boxes_b)
 
-        if num_a == 0:
+        if not symmetric and num_a == 0:
             continue
         
         if num_a == 0:
@@ -326,8 +326,9 @@ def parse_args():
     parser.add_argument("-o", "--candidate", help="Candidate bounding boxes", required=True)
     parser.add_argument("-u", "--classes", type=str, help="use these object classes (standard set: person/bicycle/scooter)")
     parser.add_argument("--size", type=image_size, default=(1024,576), help="Frame dimensions formatted as WidthxHeight (1024x576)")
-    parser.add_argument("--iou", type=float, default=0.4, help="IOU threshold (0.4)")
+    parser.add_argument("--iou", type=float, default=0.5, help="IOU threshold (0.5)")
     parser.add_argument("--lam", type=float, default=0.2, help="Weight to apply to class difference (0.2)")
+    parser.add_argument("--symmetric", action='store_true', help="Treat sets symmetrically instead of a baseline/candidate pair")
     return parser.parse_args()
 
 
@@ -342,13 +343,15 @@ def main():
 
     lam = args.lam
     iou_threshold = args.iou
-    matrix = compare_boxes_soft_matching(baseline_b, candidate_b, class_df, lam, iou_threshold)
+    symmetric = args.symmetric
+    matrix = compare_boxes_soft_matching(baseline_b, candidate_b, class_df, lam, iou_threshold, symmetric)
 
     metrics_summary = calculate_per_class_metrics(matrix, class_df)
 
     print("");
-    print_performance_report(metrics_summary, class_df)
-    print("");
+    if not symmetric:
+        print_performance_report(metrics_summary, class_df)
+        print("");
     print_confusion_matrix_report(matrix, class_df)
     print("");
 
