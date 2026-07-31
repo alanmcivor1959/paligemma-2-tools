@@ -100,15 +100,14 @@ def main():
                     box = det["box"] # [xmin, ymin, xmax, ymax]
                     label = det["label"]
             
-                    match = None
-                    for item in classes_list:
-                        if item.get("prompt") == label:
-                            match = item
-                            break
-                    class_id = match["code"]
-                    bboxid += 1
-                    bbox = [bboxid, fno, ts, box, class_id]
-                    bboxes.append(bbox)
+                    match = label_classes.get_entry_from_prompt(classes_list, label)
+                    if match is None:
+                        print(f"{fno}: Invalid label '{label}'")
+                    if match is not None:
+                        class_id = match["code"]
+                        bboxid += 1
+                        bbox = [bboxid, fno, ts, box, class_id]
+                        bboxes.append(bbox)
 
             # Clear the buffer for the next batch
             frame_buffer.clear()

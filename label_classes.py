@@ -47,3 +47,14 @@ def get_class_colour(label_name):
     b = int((b / max_val) * 200) + 55
     
     return (r, g, b)
+
+
+def get_entry_from_prompt(classes_list, prompt):
+    """
+    Get the entry on the classes_list that has the given prompt.
+    Returns None if prompt invalid
+    """
+    for item in classes_list:
+        if item.get("prompt") == prompt:
+            return item
+    return None
