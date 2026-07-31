@@ -22,7 +22,7 @@ def get_prompt(classes_list):
             class_str += " ; "
         cprompt = item.get("prompt", "Unknown Label")
         class_str += cprompt
-    prompt = "<image> detect " + class_str
+    prompt = "<image> detect " + class_str + "\n"
     return prompt
 
 
