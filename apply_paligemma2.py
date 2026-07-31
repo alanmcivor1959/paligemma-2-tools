@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--classes", type=str, required=True, help="Path to json file defining classes")
     parser.add_argument("--output", type=str, required=True, help="Filename to save the bbox to")
     parser.add_argument("--model", type=str, default="google/paligemma2-3b-mix-448", help="Hugging Face model ID")
+    parser.add_argument("--batch", type=int, default=16, help="Number of frames per batch")
     return parser.parse_args()
 
 # NB: -mix- models are fine-tuned for multiple tasks, -pt- models need fine-tuning before use
@@ -40,6 +41,10 @@ def main():
     )
     processor = AutoProcessor.from_pretrained(args.model, token=hf_token)
     
+    frame_buffer = []
+    frame_no = []
+    frame_ts = []
+
     # 2. Process video
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -52,48 +57,66 @@ def main():
     bboxes = []
     bboxid = 0
     
+    batch_size = args.batch
+
     while cap.isOpened():
         ret, frame = cap.read()
+
+        if ret:
+            frame_buffer.append(frame)
+            frame_no.append(int(cap.get(cv2.CAP_PROP_POS_FRAMES)))
+            frame_ts.append(0.0)
+
+        # Process when the buffer is full OR when we hit the end of the video
+        if len(frame_buffer) == batch_size or (not ret and len(frame_buffer) > 0):
+
+            # Convert the batch of OpenCV frames to PIL RGB format
+            images = [Image.fromarray(cv2.cvtColor(f, cv2.COLOR_BGR2RGB)) for f in frame_buffer]
+            prompts = [prompt] * len(frame_buffer)
+
+            img_w, img_h = images[0].size
+
+            # Preprocess the batch (Padding handles matching structural shapes)
+            inputs = processor(text=prompts, images=images, return_tensors="pt", padding=True).to("cuda")
+            prompt_length = inputs["input_ids"].shape[-1]
+
+            # Run parallel batch inference
+            with torch.no_grad():
+                generated_ids = model.generate(**inputs, max_new_tokens=100, do_sample=False)
+                generated_ids = generated_ids[:, prompt_length:]
+
+            outputs = processor.batch_decode(generated_ids, skip_special_tokens=False)
+    
+            # Overlay detections and write out each frame in the batch
+            for idx, output_text in enumerate(outputs):
+                current_frame = frame_buffer[idx]
+                fno = frame_no[idx]
+                ts = frame_ts[idx]
+                detections = paligemma2_support.parse_boxes(output_text, img_w, img_h)
+
+                print(f"{fno} {len(detections)}")
+
+                for det in detections:
+                    box = det["box"] # [xmin, ymin, xmax, ymax]
+                    label = det["label"]
+            
+                    match = None
+                    for item in classes_list:
+                        if item.get("prompt") == label:
+                            match = item
+                            break
+                    class_id = match["code"]
+                    bboxid += 1
+                    bbox = [bboxid, fno, ts, box, class_id]
+                    bboxes.append(bbox)
+
+            # Clear the buffer for the next batch
+            frame_buffer.clear()
+            frame_no.clear()
+            frame_ts.clear()
+
         if not ret:
             break
-        fno = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        ts = 0.0
-
-        conv = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(conv)
-        img_w, img_h = image.size
-
-        inputs = processor(text=prompt, images=image, return_tensors="pt").to("cuda")
-    
-        # 3. Generate spatial bounding box tokens
-        with torch.inference_mode():
-            output = model.generate(**inputs, max_new_tokens=100, do_sample=False)
-    
-        # 4. Decode text and isolate model output from input prefix
-        decoded = processor.decode(output[0], skip_special_tokens=False)
-        # Extract only the generated suffix part
-        input_len = inputs.input_ids.shape[1]
-        generated_tokens = output[0][input_len:]
-        clean_output = processor.decode(generated_tokens, skip_special_tokens=False)
-    
-        # 5. Parse and Print Detections
-        detections = paligemma2_support.parse_boxes(clean_output, img_w, img_h)
-
-        print(f"{fno} {len(detections)}")
-
-        for det in detections:
-            box = det["box"] # [xmin, ymin, xmax, ymax]
-            label = det["label"]
-            
-            match = None
-            for item in classes_list:
-                if item.get("prompt") == label:
-                    match = item
-                    break
-            class_id = match["code"]
-            bboxid += 1
-            bbox = [bboxid, fno, ts, box, class_id]
-            bboxes.append(bbox)
 
     cap.release()
 
