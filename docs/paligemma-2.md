@@ -62,6 +62,14 @@ OWL-ViTv2 provided anything related to scooters, or if we could
 generate sometime with it.**
 
 
+## Fine Tuning
+
+1. [https://github.com/merveenoyan/smol-vision/blob/main/paligemma.py](https://github.com/merveenoyan/smol-vision/blob/main/paligemma.py)
+2. [https://www.youtube.com/watch?v=t6bc4JV5PW0&t=54s](https://www.youtube.com/watch?v=t6bc4JV5PW0&t=54s)
+3. [https://debuggercafe.com/fine-tuning-paligemma-2-for-object-detection/](https://debuggercafe.com/fine-tuning-paligemma-2-for-object-detection/)
+4. [https://datature.io/blog/a-primer-on-fine-tuning-paligemma-and-vlms](https://datature.io/blog/a-primer-on-fine-tuning-paligemma-and-vlms)
+
+
 ## Futher Work
 
 1. Try separate prompts for bicycle and scooter, with downstream
