@@ -68,6 +68,7 @@ generate sometime with it.**
 2. [https://www.youtube.com/watch?v=t6bc4JV5PW0&t=54s](https://www.youtube.com/watch?v=t6bc4JV5PW0&t=54s)
 3. [https://debuggercafe.com/fine-tuning-paligemma-2-for-object-detection/](https://debuggercafe.com/fine-tuning-paligemma-2-for-object-detection/)
 4. [https://datature.io/blog/a-primer-on-fine-tuning-paligemma-and-vlms](https://datature.io/blog/a-primer-on-fine-tuning-paligemma-and-vlms)
+5. [https://blog.roboflow.com/fine-tune-paligemma-2/](https://blog.roboflow.com/fine-tune-paligemma-2/)
 
 
 ## Futher Work
