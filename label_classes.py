@@ -2,6 +2,7 @@ import hashlib
 import os
 import json
 
+
 def read_label_classes(fname):
     """Reads label classes from json file"""
     try:
@@ -34,18 +35,18 @@ def get_class_colour(label_name):
     # Create a stable hash of the label text
     hash_object = hashlib.md5(label_name.lower().strip().encode())
     hex_dig = hash_object.hexdigest()
-    
+
     # Extract RGB values using chunks of the hash
     r = int(hex_dig[0:2], 16)
     g = int(hex_dig[2:4], 16)
     b = int(hex_dig[4:6], 16)
-    
+
     # Maximize brightness/saturation for visual clarity against varied image backgrounds
     max_val = max(r, g, b, 1)
     r = int((r / max_val) * 200) + 55
     g = int((g / max_val) * 200) + 55
     b = int((b / max_val) * 200) + 55
-    
+
     return (r, g, b)
 
 

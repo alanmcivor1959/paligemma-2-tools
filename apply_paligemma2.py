@@ -1,15 +1,16 @@
 import argparse
-import hashlib
+
 import os
-import re
+
 import torch
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
-import json
+
 import cv2
 import label_classes
 import paligemma2_support
 import bbox_io as bbio
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="PaliGemma 2 Local Object Detection CLI")
@@ -21,11 +22,20 @@ def parse_args():
     parser.add_argument("--max_new_tokens", type=int, default=100, help="Maximum number of new tokens in response")
     return parser.parse_args()
 
+
 # NB: -mix- models are fine-tuned for multiple tasks, -pt- models need fine-tuning before use
+
 
 def main():
     args = parse_args()
 
+    # Verify CUDA availability before model loading
+    if not torch.cuda.is_available():
+        raise EnvironmentError(
+            "No CUDA-compatible GPU detected.\n"
+            f"Detected device count: {torch.cuda.device_count()} (CUDA devices).\n"
+            "Please ensure an NVIDIA GPU with compatible drivers is installed, or adjust the runtime environment."
+        )
     hf_token = os.getenv("HF_TOKEN")
     if not hf_token:
         raise EnvironmentError("Container Boot Failure: The 'HF_TOKEN' runtime variable is missing.")
@@ -35,13 +45,10 @@ def main():
     # 1. Load the model directly into VRAM using bfloat16
     print(f"Loading {args.model} onto GPU...")
     model = PaliGemmaForConditionalGeneration.from_pretrained(
-        args.model, 
-        torch_dtype=torch.bfloat16, 
-        device_map="cuda",
-        token=hf_token
+        args.model, torch_dtype=torch.bfloat16, device_map="cuda", token=hf_token
     )
     processor = AutoProcessor.from_pretrained(args.model, token=hf_token)
-    
+
     frame_buffer = []
     frame_no = []
     frame_ts = []
@@ -57,7 +64,7 @@ def main():
 
     bboxes = []
     bboxid = 0
-    
+
     batch_size = args.batch
 
     max_new_tokens = args.max_new_tokens
@@ -89,10 +96,9 @@ def main():
                 generated_ids = generated_ids[:, prompt_length:]
 
             outputs = processor.batch_decode(generated_ids, skip_special_tokens=False)
-    
+
             # Overlay detections and write out each frame in the batch
             for idx, output_text in enumerate(outputs):
-                current_frame = frame_buffer[idx]
                 fno = frame_no[idx]
                 ts = frame_ts[idx]
                 detections = paligemma2_support.parse_boxes(output_text, img_w, img_h)
@@ -100,9 +106,9 @@ def main():
                 print(f"{fno} {len(detections)}")
 
                 for det in detections:
-                    box = det["box"] # [xmin, ymin, xmax, ymax]
+                    box = det["box"]  # [xmin, ymin, xmax, ymax]
                     label = det["label"]
-            
+
                     match = label_classes.get_entry_from_prompt(classes_list, label)
                     if match is None:
                         print(f"{fno}: Invalid label '{label}'")
@@ -123,6 +129,7 @@ def main():
     cap.release()
 
     bbio.write(args.output, bboxes, img_w, img_h)
+
 
 if __name__ == "__main__":
     main()

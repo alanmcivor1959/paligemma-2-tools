@@ -1,7 +1,7 @@
 def normalise_bbox(box, img_w, img_h):
     """Converts [xmin, ymin, xmax, ymax] into normalized [xmin, xmax, ymin, ymax]."""
     xmin, ymin, xmax, ymax = box
-    return [ xmin / img_w, xmax / img_w, ymin / img_h, ymax / img_h ]
+    return [xmin / img_w, xmax / img_w, ymin / img_h, ymax / img_h]
 
 
 def write(fname, bboxes, img_w, img_h):
@@ -10,10 +10,11 @@ def write(fname, bboxes, img_w, img_h):
         for bbox in bboxes:
             bboxid, fno, ts, box, class_id = bbox
             nbox = normalise_bbox(box, img_w, img_h)
-            tv_sec = int(ts);
+            tv_sec = int(ts)
             tv_usec = round((ts - tv_sec) * 1_000_000)
             ts_str = f"{tv_sec:10d}.{tv_usec:06d}"
-            txt_f.write(f"{bboxid} {fno} {ts_str} " + " ".join(map(str, nbox)) + f" {class_id}" + "\n" )
+            txt_f.write(f"{bboxid} {fno} {ts_str} " + " ".join(map(str, nbox)) + f" {class_id}" + "\n")
+
 
 def read(fname, img_w, img_h):
     """Read bboxes from fname and return as array"""
@@ -35,4 +36,3 @@ def read(fname, img_w, img_h):
             bbox = [bboxid, fno, ts, box, class_id]
             bboxes.append(bbox)
     return bboxes
-
