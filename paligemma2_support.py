@@ -8,6 +8,15 @@ def parse_boxes(output_text, img_w, img_h):
     """
     # Regex pattern to extract location tokens and the trailing label
     pattern = r"<loc(\d{4})><loc(\d{4})><loc(\d{4})><loc(\d{4})>\s*([^;?<]+)"
+
+    # Here are some examples of invalid output that was observerd
+    #  <loc0000><loc0000><loc1022><loc1022> <seg078><seg078><seg114><seg078><seg078><seg078><seg114><seg078><seg078><seg078><seg114><seg078><seg078><seg078><seg114><seg012> person ;
+    #  <loc0000>  (this was right at the end)
+    #  <loc0000><loc0410><loc0034><loc0421> person riding  (this was right at the end)
+    #  <loc0000><loc0430>  (this was right at the end)
+    #  <loc0000><loc0000><loc1023><loc1022> area ;
+    #  <loc0000><loc0000><loc1022><loc1022> person on  (this was right at the end)
+
     matches = re.findall(pattern, output_text)
 
     results = []
