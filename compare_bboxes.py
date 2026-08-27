@@ -39,7 +39,7 @@ def load_bounding_boxes(file_path, img_w, img_h):
     if not frames_dict:
         return []
     max_frame = max(frames_dict.keys())
-    return [frames_dict[i] for i in range(max_frame + 1)]
+    return [frames_dict[i] for i in range(max_frame + 1)] # frames_dict[0] is always empty
 
 
 def calculate_iou(box1, box2):
@@ -69,7 +69,8 @@ def compare_boxes_soft_matching(tool_a_frames, tool_b_frames, classes, lam, iou_
 
     confusion_matrix = np.zeros((bg_idx + 1, bg_idx + 1), dtype=int)
 
-    for frame_idx in range(total_frames):
+    # we know that tool_?_frames[0] is empty
+    for frame_idx in range(1, total_frames):
         boxes_a = tool_a_frames[frame_idx] if frame_idx < len(tool_a_frames) else []
         boxes_b = tool_b_frames[frame_idx] if frame_idx < len(tool_b_frames) else []
 
