@@ -61,7 +61,6 @@ variant, COCO-35L and OWL-ViTv2 were used. **Need to determine if
 OWL-ViTv2 provided anything related to scooters, or if we could
 generate sometime with it.**
 
-
 ## Fine Tuning
 
 1. [https://github.com/merveenoyan/smol-vision/blob/main/paligemma.py](https://github.com/merveenoyan/smol-vision/blob/main/paligemma.py)
@@ -78,3 +77,16 @@ generate sometime with it.**
 2. Other prompts. like "person walking" instead of "person".
 3. Try bigger models with quantisation to fit in. 
 4. Explore 664 models.
+5. Caching of HF models
+   1. [Search](https://www.google.com/search?client=firefox-b-d&q=hugging+face+download+and+cache+paligemma2+model+instead+of+calling++PaliGemmaForConditionalGeneration.from_pretrained%28%29+each+time)
+   2. [Cache location](ttps://www.google.com/search?client=firefox-b-d&q=hugging+face+global+cache+path)
+   3. [Managing](https://huggingface.co/docs/huggingface_hub/guides/manage-cache)
+   4. [Local](https://huggingface.co/docs/hub/local-cache)
+6. 
+
+
+## References
+
+1. [https://ai.google.dev/gemma/docs/paligemma](https://ai.google.dev/gemma/docs/paligemma)
+2. [https://huggingface.co/blog/paligemma2](https://huggingface.co/blog/paligemma2)
+3. [https://ai.google.dev/gemma/docs/paligemma/prompt-system-instructions](https://ai.google.dev/gemma/docs/paligemma/prompt-system-instructions)
