@@ -24,17 +24,19 @@ def load_bounding_boxes(file_path, img_w, img_h):
                 continue
 
             fields = line.split()
-            frame_num = int(fields[1])
-
-            # Layout: [x_min, y_min, x_max, y_max]
-            box = [
-                float(fields[3]) * img_w,  # x_min
-                float(fields[5]) * img_h,  # y_min
-                float(fields[4]) * img_w,  # x_max
-                float(fields[6]) * img_h,  # y_max
-            ]
-            label = int(fields[7])  # class_id
-
+            try:
+                frame_num = int(fields[1])
+                # Layout: [x_min, y_min, x_max, y_max]
+                box = [
+                    float(fields[3]) * img_w,  # x_min
+                    float(fields[5]) * img_h,  # y_min
+                    float(fields[4]) * img_w,  # x_max
+                    float(fields[6]) * img_h,  # y_max
+                ]
+                label = int(fields[7])  # class_id
+            except (IndexError, ValueError):
+                continue
+            
             frames_dict[frame_num].append({"box": box, "label": label})
 
     if not frames_dict:
@@ -45,13 +47,11 @@ def load_bounding_boxes(file_path, img_w, img_h):
 
 args = parse_args()
 
-
-
 # 1. Open the existing source video
 cap = cv2.VideoCapture(args.video)
 
 if not cap.isOpened():
-    print(f"Error: Could not open input video {input_path}")
+    print(f"Error: Could not open input video {args.video}")
     exit()
 
 # 2. Extract properties from the original video
